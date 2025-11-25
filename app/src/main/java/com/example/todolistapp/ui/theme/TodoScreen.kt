@@ -1,107 +1,225 @@
 package com.example.todolistapp.ui.theme
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.todolistapp.data.TodoItem
 import com.example.todolistapp.viewmodel.TodoViewModel
 
+// --- CORES (Mesmas do tema anterior) ---
+private val DarkBackground = Color(0xFF111827)
+private val CardBackground = Color(0xFF1F2937)
+private val PrimaryAccent = Color(0xFF6366F1)
+private val TextWhite = Color(0xFFF9FAFB)
+private val TextGray = Color(0xFF9CA3AF)
+private val GreenSuccess = Color(0xFF10B981)
+private val RedDelete = Color(0xFFEF4444)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodoScreen(viewModel: TodoViewModel = viewModel()) {
-    // Coleta o estado da lista direto do banco de dados
     val todoList by viewModel.todoList.collectAsState(initial = emptyList())
     var textInput by remember { mutableStateOf("") }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "Minhas Tarefas",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+    // --- ESTADOS PARA O DIALOG DE EDIÇÃO ---
+    var showDialog by remember { mutableStateOf(false) }
+    var itemToEdit by remember { mutableStateOf<TodoItem?>(null) }
+    var editTextInput by remember { mutableStateOf("") }
 
-        // Área de Input (Campo de texto + Botão)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            OutlinedTextField(
-                value = textInput,
-                onValueChange = { textInput = it },
-                label = { Text("Nova tarefa") },
-                modifier = Modifier.weight(1f)
+    // Função auxiliar para abrir o dialog
+    fun openEditDialog(item: TodoItem) {
+        itemToEdit = item
+        editTextInput = item.title
+        showDialog = true
+    }
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Dev Tasks", fontWeight = FontWeight.Bold, color = TextWhite) },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = DarkBackground)
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = {
-                if (textInput.isNotBlank()) {
-                    viewModel.addTodo(textInput)
-                    textInput = "" // Limpa o campo
+        },
+        containerColor = DarkBackground
+    ) { paddingValues ->
+
+        // --- CONTEÚDO DA TELA ---
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp)
+        ) {
+            // Card de Adicionar (Igual ao anterior)
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardBackground),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = textInput,
+                        onValueChange = { textInput = it },
+                        placeholder = { Text("Nova tarefa...", color = TextGray) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextWhite,
+                            unfocusedTextColor = TextWhite,
+                            cursorColor = PrimaryAccent,
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                    FloatingActionButton(
+                        onClick = {
+                            if (textInput.isNotBlank()) {
+                                viewModel.addTodo(textInput)
+                                textInput = ""
+                            }
+                        },
+                        containerColor = PrimaryAccent,
+                        contentColor = Color.White,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Adicionar")
+                    }
                 }
-            }) {
-                Text("Add")
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(todoList) { item ->
+                    TodoItemRow(
+                        item = item,
+                        onToggle = { viewModel.toggleTodo(item) },
+                        onDelete = { viewModel.deleteTodo(item) },
+                        onEdit = { openEditDialog(item) } // Passamos a ação de editar
+                    )
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Lista de Tarefas (LazyColumn é a "RecyclerView" do Compose)
-        LazyColumn {
-            items(todoList) { item ->
-                TodoItemRow(
-                    item = item,
-                    onToggle = { viewModel.toggleTodo(item) },
-                    onDelete = { viewModel.deleteTodo(item) }
-                )
-            }
+        // --- O DIALOG DE EDIÇÃO (Aparece sobre a tela) ---
+        if (showDialog) {
+            AlertDialog(
+                onDismissRequest = { showDialog = false },
+                containerColor = CardBackground,
+                title = { Text("Editar Tarefa", color = TextWhite) },
+                text = {
+                    OutlinedTextField(
+                        value = editTextInput,
+                        onValueChange = { editTextInput = it },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextWhite,
+                            unfocusedTextColor = TextWhite,
+                            cursorColor = PrimaryAccent,
+                            focusedBorderColor = PrimaryAccent,
+                            unfocusedBorderColor = TextGray
+                        )
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            itemToEdit?.let { item ->
+                                if (editTextInput.isNotBlank()) {
+                                    viewModel.updateTodoTitle(item, editTextInput)
+                                }
+                            }
+                            showDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryAccent)
+                    ) {
+                        Text("Salvar", color = TextWhite)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDialog = false }) {
+                        Text("Cancelar", color = TextGray)
+                    }
+                }
+            )
         }
     }
 }
 
-// Componente visual de cada linha da lista
 @Composable
 fun TodoItemRow(
     item: TodoItem,
     onToggle: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onEdit: () -> Unit // Novo parâmetro
 ) {
+    val cardColor by animateColorAsState(
+        targetValue = if (item.isDone) Color(0xFF064E3B) else CardBackground, label = "color"
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (item.isDone) 0.98f else 1f, label = "scale"
+    )
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        modifier = Modifier.fillMaxWidth().scale(scale),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        elevation = CardDefaults.cardElevation(4.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(8.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
             Checkbox(
                 checked = item.isDone,
-                onCheckedChange = { onToggle() }
+                onCheckedChange = { onToggle() },
+                colors = CheckboxDefaults.colors(checkedColor = GreenSuccess, uncheckedColor = TextGray)
             )
-            Text(
-                text = item.title,
-                modifier = Modifier.weight(1f),
-                textDecoration = if (item.isDone) TextDecoration.LineThrough else null,
-                color = if (item.isDone) Color.Gray else Color.Black
-            )
+
+            Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                Text(
+                    text = item.title,
+                    color = if (item.isDone) TextGray else TextWhite,
+                    fontSize = 16.sp,
+                    textDecoration = if (item.isDone) TextDecoration.LineThrough else null
+                )
+            }
+
+            // BOTÃO DE EDITAR (Lápis)
+            IconButton(onClick = onEdit) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Editar",
+                    tint = PrimaryAccent
+                )
+            }
+
+            // BOTÃO DE DELETAR
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "Deletar",
-                    tint = Color.Red
+                    tint = RedDelete.copy(alpha = 0.8f)
                 )
             }
         }
