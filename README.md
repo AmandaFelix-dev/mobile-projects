@@ -1,4 +1,4 @@
-<h1 align="center">📱 Dev Tasks - Mobile Project</h1>
+<h1 align="center">📱 Dev Tasks - Projeto de Mobile</h1>
 
 <p align="center">
   </p>
